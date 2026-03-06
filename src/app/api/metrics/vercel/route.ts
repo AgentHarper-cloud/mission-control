@@ -1,18 +1,7 @@
 import { NextResponse } from 'next/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { createClient } from '@libsql/client';
-
-// Turso client for lead tracking data
-const getTursoClient = () => {
-  if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
-    return null;
-  }
-  return createClient({
-    url: process.env.TURSO_DATABASE_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
-};
+import client from '@/lib/db';
 
 interface PageStats {
   path: string;
@@ -145,11 +134,6 @@ async function fetchVercelAnalytics(
 }
 
 async function fetchLeadMetrics(funnelId: string, from: string, to: string): Promise<LeadMetrics> {
-  const client = getTursoClient();
-  if (!client) {
-    return { total: 0, unique: 0 };
-  }
-
   try {
     // Query leads from our tracking database
     // Leads are tracked as page = '/lead' when form is submitted

@@ -1,10 +1,38 @@
 import { createClient, Client } from '@libsql/client';
 
-// Initialize Turso client
-const client: Client = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:data/mission-control.db',
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+// Lazy-initialize Turso client to avoid build-time errors
+let _client: Client | null = null;
+
+function getClient(): Client {
+  if (_client) return _client;
+  
+  // Get database URL from environment or use local file
+  let dbUrl = process.env.TURSO_DATABASE_URL;
+  
+  // If no Turso URL, use local SQLite file
+  if (!dbUrl || dbUrl === 'undefined' || dbUrl.trim() === '') {
+    dbUrl = 'file:./data/mission-control.db';
+  }
+  
+  try {
+    _client = createClient({
+      url: dbUrl,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  } catch (error) {
+    // Fallback to in-memory database if file access fails (e.g., during build)
+    console.warn('[db] Database connection failed, using in-memory SQLite:', error);
+    _client = createClient({ url: ':memory:' });
+  }
+  
+  return _client;
+}
+
+// Alias for backward compatibility  
+const client = { 
+  get execute() { return getClient().execute.bind(getClient()); },
+  get batch() { return getClient().batch.bind(getClient()); },
+};
 
 // Initialize schema on first import
 let schemaInitialized = false;

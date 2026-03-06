@@ -1,12 +1,8 @@
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
-import { createClient } from '@libsql/client';
+import client from '@/lib/db';
 
 // Initialize Turso client
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || '',
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
 
 // Cache to avoid hammering the DB
 let cache: {

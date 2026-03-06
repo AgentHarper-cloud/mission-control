@@ -2,17 +2,9 @@ import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { createClient } from '@libsql/client';
+import client from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-
-// Get Turso client for historical data
-function getTursoClient() {
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-  if (!url || !authToken) return null;
-  return createClient({ url, authToken });
-}
 
 // Fetch historical transactions from Turso (Jan-Feb 2026 from agency account)
 async function getHistoricalTransactions(startUnix: number, endUnix: number): Promise<Array<{
@@ -21,9 +13,6 @@ async function getHistoricalTransactions(startUnix: number, endUnix: number): Pr
   name: string | null;
   email: string | null;
 }>> {
-  const client = getTursoClient();
-  if (!client) return [];
-  
   try {
     const startDate = new Date(startUnix * 1000).toISOString();
     const endDate = new Date(endUnix * 1000).toISOString();

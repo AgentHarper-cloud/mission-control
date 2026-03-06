@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
-import { createClient } from '@libsql/client';
-
-// Initialize Turso client
-const getClient = () => createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:data/mission-control.db',
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+import client from '@/lib/db';
 
 interface FunnelAdStats {
   id: number;
@@ -30,7 +24,6 @@ interface FunnelAdStats {
 // GET - Retrieve funnel ad stats
 export async function GET(request: NextRequest) {
   try {
-    const client = getClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('project_id');
     const funnelName = searchParams.get('funnel_name');
@@ -76,7 +69,6 @@ export async function GET(request: NextRequest) {
 // POST - Add or update funnel ad stats
 export async function POST(request: NextRequest) {
   try {
-    const client = getClient();
     const body = await request.json();
     
     const {

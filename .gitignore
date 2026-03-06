@@ -10,9 +10,11 @@ build/
 dist/
 
 # Database
-data/
+data/*.db
+data/*.sqlite
 *.db
 *.sqlite
+!data/.gitkeep
 
 # Environment
 .env
