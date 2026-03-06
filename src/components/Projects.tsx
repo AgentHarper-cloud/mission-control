@@ -1,49 +1,68 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, emptySimulationState } from "@/lib/simulation-state";
+
+type TaskStatus = 'inbox' | 'up-next' | 'in-progress' | 'waiting-on-aaron' | 'in-review' | 'done' | 'backlog';
+type TaskPriority = 'low' | 'medium' | 'high' | 'urgent' | 'critical';
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus | string;
+  priority: TaskPriority | string;
+  assigned_agent: string;
+  created_at: string;
+}
+
+interface DemoState {
+  tasks: Task[];
+  business: { name: string };
+}
 
 const KANBAN_COLUMNS = [
-  { id: 'queued', title: 'Queued', color: '#94A3B8' },
-  { id: 'in_progress', title: 'In Progress', color: '#A78BFA' },
-  { id: 'complete', title: 'Complete', color: '#34D399' },
+  { id: 'inbox', title: 'Inbox', color: '#94A3B8' },
+  { id: 'up-next', title: 'Up Next', color: '#00D9FF' },
+  { id: 'in-progress', title: 'In Progress', color: '#E91E8C' },
+  { id: 'done', title: 'Done', color: '#34D399' },
 ];
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  queued: { bg: 'rgba(100,116,139,0.2)', text: '#94A3B8', border: '#64748B' },
-  in_progress: { bg: 'rgba(124,58,237,0.2)', text: '#A78BFA', border: '#7C3AED' },
-  complete: { bg: 'rgba(16,185,129,0.2)', text: '#10B981', border: '#059669' },
+const PRIORITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  low: { bg: 'rgba(100,116,139,0.2)', text: '#94A3B8', border: '#64748B' },
+  medium: { bg: 'rgba(59,130,246,0.2)', text: '#60A5FA', border: '#3B82F6' },
+  high: { bg: 'rgba(249,115,22,0.2)', text: '#FB923C', border: '#F97316' },
+  urgent: { bg: 'rgba(239,68,68,0.2)', text: '#F87171', border: '#EF4444' },
+  critical: { bg: 'rgba(236,72,153,0.2)', text: '#F472B6', border: '#EC4899' },
 };
 
-export default function Projects() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+export default function Projects({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const hasData = simState.businessName && simState.phase !== "startup";
-  const tasks = simState.tasks;
-  const agents = simState.agents;
-  const deliverables = simState.deliverables;
+  const tasks = state?.tasks || [];
 
   const getTasksByStatus = (status: string) => {
     return tasks.filter(task => task.status === status);
-  };
-
-  const getAgentById = (agentId: string) => {
-    return agents.find(a => a.id === agentId);
   };
 
   return (
@@ -78,20 +97,14 @@ export default function Projects() {
           }}>
             Tasks & Projects
           </h1>
-          {hasData && (
-            <p style={{ color: "#6B7186", fontSize: 13, marginTop: 4 }}>
-              {simState.businessName}
-            </p>
-          )}
         </div>
         <div style={{
           display: "flex",
           gap: 12,
         }}>
-          <StatPill label="Total Tasks" value={tasks.length} />
-          <StatPill label="In Progress" value={getTasksByStatus("in_progress").length} color="#A78BFA" />
-          <StatPill label="Complete" value={getTasksByStatus("complete").length} color="#34D399" />
-          <StatPill label="Deliverables" value={deliverables.length} color="#FF4EDB" />
+          <StatPill label="Total" value={tasks.length} />
+          <StatPill label="In Progress" value={getTasksByStatus("in-progress").length} color="#E91E8C" />
+          <StatPill label="Done" value={getTasksByStatus("done").length} color="#34D399" />
         </div>
       </div>
 
@@ -105,7 +118,7 @@ export default function Projects() {
         }}>
           Loading tasks...
         </div>
-      ) : !hasData ? (
+      ) : tasks.length === 0 ? (
         <div style={{
           display: "flex",
           flexDirection: "column",
@@ -121,184 +134,62 @@ export default function Projects() {
             No Tasks Yet
           </div>
           <div style={{ color: "#6B7186", fontSize: 14 }}>
-            Start a business build from <span style={{ color: "#FF4EDB" }}>🔴 LIVE BUILD</span> to create tasks
+            Start a business build from Live Demo to create tasks
           </div>
         </div>
       ) : (
-        <>
-          {/* Kanban Board */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 16,
-            alignItems: "flex-start",
-            marginBottom: 24,
-          }}>
-            {KANBAN_COLUMNS.map((column) => (
-              <div key={column.id} style={{
-                background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.08)",
-                minHeight: 300,
-              }}>
-                {/* Column header */}
-                <div style={{
-                  padding: "16px 16px 12px",
-                  borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}>
-                  <div style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: column.color,
-                  }} />
-                  <span style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#F5F7FA",
-                  }}>
-                    {column.title}
-                  </span>
-                  <span style={{
-                    fontSize: 11,
-                    color: "#6B7186",
-                    marginLeft: "auto",
-                  }}>
-                    {getTasksByStatus(column.id).length}
-                  </span>
-                </div>
-
-                {/* Tasks */}
-                <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {getTasksByStatus(column.id).length === 0 ? (
-                    <div style={{
-                      padding: 20,
-                      textAlign: "center",
-                      color: "#4B5563",
-                      fontSize: 12,
-                    }}>
-                      {column.id === "queued" && "Tasks will appear here..."}
-                      {column.id === "in_progress" && "Tasks being worked on..."}
-                      {column.id === "complete" && "Completed tasks..."}
-                    </div>
-                  ) : (
-                    getTasksByStatus(column.id).map((task) => {
-                      const agent = getAgentById(task.agent);
-                      return (
-                        <TaskCard 
-                          key={task.id} 
-                          task={task} 
-                          agent={agent} 
-                          columnColor={column.color} 
-                        />
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Deliverables Section */}
-          <div style={{
-            background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.08)",
-            padding: 24,
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: "#F5F7FA",
-              marginBottom: 20,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 16,
+          alignItems: "flex-start",
+        }}>
+          {KANBAN_COLUMNS.map((column) => (
+            <div key={column.id} style={{
+              background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              minHeight: 400,
             }}>
-              📦 Project Deliverables
-              <span style={{
-                marginLeft: "auto",
-                fontSize: 10,
-                padding: "2px 8px",
-                borderRadius: 10,
-                background: "rgba(16,185,129,0.2)",
-                color: "#10B981",
-              }}>
-                {deliverables.filter(d => d.status === "complete").length}/{deliverables.length}
-              </span>
-            </h2>
-            
-            {deliverables.length === 0 ? (
+              {/* Column header */}
               <div style={{
-                color: "#6B7186",
-                fontSize: 14,
-                textAlign: "center",
-                padding: 40,
+                padding: "16px 16px 12px",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               }}>
-                Deliverables will appear here as agents complete their work...
+                <div style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: column.color,
+                }} />
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#F5F7FA",
+                }}>
+                  {column.title}
+                </span>
+                <span style={{
+                  fontSize: 11,
+                  color: "#6B7186",
+                  marginLeft: "auto",
+                }}>
+                  {getTasksByStatus(column.id).length}
+                </span>
               </div>
-            ) : (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: 16,
-              }}>
-                {deliverables.map((del) => (
-                  <div
-                    key={del.id}
-                    style={{
-                      padding: 16,
-                      background: del.status === "complete" 
-                        ? "rgba(16,185,129,0.1)" 
-                        : "rgba(124,58,237,0.1)",
-                      borderRadius: 12,
-                      border: del.status === "complete"
-                        ? "1px solid rgba(16,185,129,0.3)"
-                        : "1px solid rgba(124,58,237,0.3)",
-                    }}
-                  >
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                    }}>
-                      <span style={{ fontSize: 28 }}>
-                        {del.type === "website" ? "🌐" :
-                         del.type === "cart" ? "🛒" :
-                         del.type === "email" ? "📧" :
-                         del.type === "content" ? "📱" :
-                         del.type === "funnel" ? "📞" :
-                         del.type === "ads" ? "📺" : "📄"}
-                      </span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#F5F7FA" }}>
-                          {del.title}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#6B7186", marginTop: 4 }}>
-                          Wave {del.wave} • {del.type}
-                        </div>
-                      </div>
-                      <span style={{
-                        fontSize: 10,
-                        padding: "4px 10px",
-                        borderRadius: 4,
-                        background: del.status === "complete" ? "rgba(16,185,129,0.2)" : "rgba(124,58,237,0.2)",
-                        color: del.status === "complete" ? "#10B981" : "#A78BFA",
-                        textTransform: "uppercase",
-                        fontWeight: 600,
-                      }}>
-                        {del.status}
-                      </span>
-                    </div>
-                  </div>
+
+              {/* Tasks */}
+              <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                {getTasksByStatus(column.id).map((task) => (
+                  <TaskCard key={task.id} task={task} columnColor={column.color} />
                 ))}
               </div>
-            )}
-          </div>
-        </>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -321,8 +212,8 @@ function StatPill({ label, value, color = "#F5F7FA" }: { label: string; value: n
   );
 }
 
-function TaskCard({ task, agent, columnColor }: { task: any; agent: any; columnColor: string }) {
-  const statusStyle = STATUS_COLORS[task.status] || STATUS_COLORS.queued;
+function TaskCard({ task, columnColor }: { task: Task; columnColor: string }) {
+  const priorityStyle = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium;
 
   return (
     <div style={{
@@ -330,6 +221,7 @@ function TaskCard({ task, agent, columnColor }: { task: any; agent: any; columnC
       borderRadius: 8,
       padding: 12,
       borderLeft: `3px solid ${columnColor}`,
+      cursor: "pointer",
       transition: "all 0.15s ease",
     }}>
       <div style={{
@@ -347,41 +239,27 @@ function TaskCard({ task, agent, columnColor }: { task: any; agent: any; columnC
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        {task.progress > 0 && task.progress < 100 && (
-          <div style={{
-            flex: 1,
-            marginRight: 10,
-          }}>
-            <div style={{
-              height: 4,
-              background: "rgba(255,255,255,0.1)",
-              borderRadius: 2,
-              overflow: "hidden",
-            }}>
-              <div style={{
-                width: `${task.progress}%`,
-                height: "100%",
-                background: columnColor,
-                transition: "width 0.3s ease",
-              }} />
-            </div>
-          </div>
-        )}
+        <span style={{
+          fontSize: 9,
+          padding: "2px 6px",
+          borderRadius: 4,
+          background: priorityStyle.bg,
+          color: priorityStyle.text,
+          border: `1px solid ${priorityStyle.border}40`,
+          textTransform: "uppercase",
+          fontWeight: 600,
+          letterSpacing: 0.5,
+        }}>
+          {task.priority}
+        </span>
 
-        {agent && (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
+        {task.assigned_agent && (
+          <span style={{
+            fontSize: 10,
+            color: "#6B7186",
           }}>
-            <span style={{ fontSize: 14 }}>{agent.avatar}</span>
-            <span style={{
-              fontSize: 10,
-              color: "#6B7186",
-            }}>
-              {agent.name}
-            </span>
-          </div>
+            → {task.assigned_agent}
+          </span>
         )}
       </div>
     </div>

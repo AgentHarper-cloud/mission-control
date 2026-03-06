@@ -1,81 +1,77 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, emptySimulationState } from "@/lib/simulation-state";
 
-export default function MediaHub() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+interface DemoState {
+  business: {
+    name: string;
+    niche: string;
+    mainOffer: string;
+  };
+  agents: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    role: string;
+    status: string;
+    tasksCompleted: number;
+  }>;
+  activity: Array<{
+    id: string;
+    message: string;
+    timestamp: string;
+    type: string;
+  }>;
+}
+
+export default function MediaHub({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const hasData = simState.businessName && simState.phase !== "startup";
-  const agents = simState.agents;
-  const deliverables = simState.deliverables;
-  const activity = simState.activity;
+  const hasData = state?.business?.name && state.business.name !== "Demo Business";
+  const agents = state?.agents || [];
+  const activity = state?.activity || [];
 
-  // Find content-related agents
-  const contentAgents = agents.filter(a => 
-    ["content", "email", "ads"].includes(a.id)
-  );
+  // Find content/outreach agent
+  const contentAgent = agents.find(a => a.role?.toLowerCase().includes("content") || a.id === "outreach");
 
-  // Find content-related deliverables
-  const mediaDeliverables = deliverables.filter(d => 
-    ["email", "content", "ads"].includes(d.type)
-  );
-
-  // Extract content-related activity
-  const contentActivity = activity.filter(a => 
-    a.message.includes("📧") || 
-    a.message.includes("email") || 
-    a.message.includes("📱") ||
-    a.message.includes("content") ||
-    a.message.includes("📺") ||
-    a.message.includes("ad") ||
-    a.type === "deliverable"
-  ).slice(0, 10);
+  // Generate content items from activity
+  const contentItems = activity
+    .filter(a => a.message.includes("📧") || a.message.includes("email") || a.message.includes("CAMPAIGN"))
+    .slice(0, 6)
+    .map((a, i) => ({
+      id: a.id,
+      type: a.message.includes("CAMPAIGN") ? "campaign" : "email",
+      title: a.message.replace(/^[^\s]+\s/, ""),
+      status: "sent",
+      timestamp: a.timestamp,
+    }));
 
   const channels = [
-    { 
-      name: "Email Sequences", 
-      icon: "📧", 
-      count: deliverables.filter(d => d.type === "email" && d.status === "complete").length,
-      status: agents.find(a => a.id === "email")?.status || "pending",
-      color: "#2F80FF" 
-    },
-    { 
-      name: "Content Calendar", 
-      icon: "📱", 
-      count: deliverables.filter(d => d.type === "content" && d.status === "complete").length,
-      status: agents.find(a => a.id === "content")?.status || "pending",
-      color: "#10B981" 
-    },
-    { 
-      name: "Ad Creatives", 
-      icon: "📺", 
-      count: deliverables.filter(d => d.type === "ads" && d.status === "complete").length,
-      status: agents.find(a => a.id === "ads")?.status || "pending",
-      color: "#FF4EDB" 
-    },
-    { 
-      name: "Landing Pages", 
-      icon: "🌐", 
-      count: deliverables.filter(d => d.type === "website" && d.status === "complete").length,
-      status: agents.find(a => a.id === "website")?.status || "pending",
-      color: "#7B61FF" 
-    },
+    { name: "Email", icon: "📧", count: contentItems.filter(c => c.type === "email").length, color: "#2F80FF" },
+    { name: "Campaigns", icon: "🚀", count: contentItems.filter(c => c.type === "campaign").length, color: "#FF4EDB" },
+    { name: "LinkedIn", icon: "💼", count: 0, color: "#0A66C2" },
+    { name: "Twitter", icon: "🐦", count: 0, color: "#1DA1F2" },
   ];
 
   return (
@@ -104,11 +100,6 @@ export default function MediaHub() {
         }}>
           Content & Campaigns
         </h1>
-        {hasData && (
-          <p style={{ color: "#6B7186", fontSize: 13, marginTop: 4 }}>
-            {simState.businessName}
-          </p>
-        )}
       </div>
 
       {loading ? (
@@ -145,7 +136,7 @@ export default function MediaHub() {
             color: "#6B7186",
             fontSize: 16,
           }}>
-            Start a business build from <span style={{ color: "#FF4EDB" }}>🔴 LIVE BUILD</span> to see your content
+            Start a business build to see your content
           </div>
         </div>
       ) : (
@@ -163,32 +154,23 @@ export default function MediaHub() {
                 style={{
                   background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
                   borderRadius: 12,
-                  border: `1px solid ${channel.status === "complete" ? channel.color + "40" : "rgba(255,255,255,0.08)"}`,
+                  border: "1px solid rgba(255,255,255,0.08)",
                   padding: 20,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ fontSize: 24 }}>{channel.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: channel.color }}>{channel.count}</div>
+                  <div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: channel.color }}>{channel.count}</div>
                     <div style={{ fontSize: 11, color: "#6B7186", textTransform: "uppercase" }}>{channel.name}</div>
                   </div>
-                  {channel.status !== "pending" && (
-                    <span style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: channel.status === "complete" ? "#10B981" : "#A78BFA",
-                      animation: channel.status === "working" ? "pulse 1s infinite" : "none",
-                    }} />
-                  )}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Content Agents */}
-          {contentAgents.length > 0 && (
+          {/* Content Agent */}
+          {contentAgent && (
             <div style={{
               background: "linear-gradient(135deg, #7B61FF20, #7B61FF10)",
               borderRadius: 16,
@@ -196,200 +178,107 @@ export default function MediaHub() {
               padding: 24,
               marginBottom: 24,
             }}>
-              <h2 style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "#F5F7FA",
-                marginBottom: 16,
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
               }}>
-                🤖 Content Team
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {contentAgents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      padding: 12,
-                      background: "rgba(255,255,255,0.05)",
-                      borderRadius: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 32 }}>{agent.avatar}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "#F5F7FA" }}>
-                        {agent.name}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#A78BFA", marginTop: 2 }}>
-                        {agent.role}
-                      </div>
-                    </div>
-                    <span style={{
-                      fontSize: 10,
-                      padding: "4px 10px",
-                      borderRadius: 4,
-                      background: agent.status === "complete" ? "rgba(16,185,129,0.2)" : 
-                                 agent.status === "working" ? "rgba(124,58,237,0.2)" : "rgba(100,116,139,0.2)",
-                      color: agent.status === "complete" ? "#10B981" : 
-                             agent.status === "working" ? "#A78BFA" : "#94A3B8",
-                      textTransform: "uppercase",
-                      fontWeight: 600,
-                    }}>
-                      {agent.status}
-                    </span>
+                <span style={{ fontSize: 40 }}>{contentAgent.avatar}</span>
+                <div>
+                  <div style={{
+                    fontSize: 18,
+                    fontWeight: 600,
+                    color: "#F5F7FA",
+                  }}>
+                    {contentAgent.name} - {contentAgent.role}
                   </div>
-                ))}
+                  <div style={{
+                    fontSize: 13,
+                    color: "#A78BFA",
+                    marginTop: 4,
+                  }}>
+                    {contentAgent.tasksCompleted} tasks completed • Status: {contentAgent.status}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Media Deliverables */}
+          {/* Recent Content */}
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 24,
+            background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.08)",
+            padding: 24,
           }}>
-            {/* Completed Assets */}
-            <div style={{
-              background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-              borderRadius: 16,
-              border: "1px solid rgba(16,185,129,0.3)",
-              padding: 24,
+            <h2 style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: "#F5F7FA",
+              marginBottom: 20,
             }}>
-              <h2 style={{
-                fontSize: 16,
-                fontWeight: 600,
-                color: "#F5F7FA",
-                marginBottom: 20,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+              📬 Recent Outreach
+            </h2>
+            {contentItems.length === 0 ? (
+              <div style={{
+                color: "#6B7186",
+                fontSize: 14,
+                textAlign: "center",
+                padding: 40,
               }}>
-                ✅ Completed Assets
-                <span style={{
-                  marginLeft: "auto",
-                  fontSize: 10,
-                  padding: "2px 8px",
-                  borderRadius: 10,
-                  background: "rgba(16,185,129,0.2)",
-                  color: "#10B981",
-                }}>
-                  {mediaDeliverables.filter(d => d.status === "complete").length}
-                </span>
-              </h2>
-              {mediaDeliverables.filter(d => d.status === "complete").length === 0 ? (
-                <div style={{
-                  color: "#6B7186",
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: 40,
-                }}>
-                  Assets will appear here as they're built...
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {mediaDeliverables.filter(d => d.status === "complete").map((del) => (
-                    <div
-                      key={del.id}
-                      style={{
-                        padding: 16,
-                        background: "rgba(16,185,129,0.1)",
-                        borderRadius: 10,
-                        borderLeft: "3px solid #10B981",
-                      }}
-                    >
+                No content sent yet
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {contentItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: 16,
+                      background: "rgba(255,255,255,0.03)",
+                      borderRadius: 10,
+                      borderLeft: `3px solid ${item.type === "campaign" ? "#FF4EDB" : "#2F80FF"}`,
+                    }}
+                  >
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}>
                       <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                      }}>
-                        <span style={{ fontSize: 20 }}>
-                          {del.type === "email" ? "📧" :
-                           del.type === "content" ? "📱" :
-                           del.type === "ads" ? "📺" : "📄"}
-                        </span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#F5F7FA" }}>
-                            {del.title}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#6B7186" }}>
-                            Wave {del.wave} • {del.completedAt ? new Date(del.completedAt).toLocaleTimeString() : ""}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Activity Feed */}
-            <div style={{
-              background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.08)",
-              padding: 24,
-            }}>
-              <h2 style={{
-                fontSize: 16,
-                fontWeight: 600,
-                color: "#F5F7FA",
-                marginBottom: 20,
-              }}>
-                📬 Content Activity
-              </h2>
-              {contentActivity.length === 0 ? (
-                <div style={{
-                  color: "#6B7186",
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: 40,
-                }}>
-                  No content activity yet
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {contentActivity.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        padding: 14,
-                        background: "rgba(255,255,255,0.03)",
-                        borderRadius: 10,
-                        borderLeft: `3px solid ${item.type === "deliverable" ? "#10B981" : "#7B61FF"}`,
-                      }}
-                    >
-                      <div style={{
-                        fontSize: 13,
+                        fontSize: 14,
                         color: "#F5F7FA",
+                        flex: 1,
                       }}>
-                        {item.message}
+                        {item.title}
                       </div>
-                      <div style={{
-                        fontSize: 10,
-                        color: "#6B7186",
-                        marginTop: 6,
-                        fontFamily: "'Orbitron', monospace",
+                      <span style={{
+                        fontSize: 9,
+                        padding: "3px 8px",
+                        borderRadius: 4,
+                        background: "rgba(16,185,129,0.2)",
+                        color: "#10B981",
+                        textTransform: "uppercase",
+                        fontWeight: 600,
                       }}>
-                        {new Date(item.timestamp).toLocaleTimeString()}
-                      </div>
+                        {item.status}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: "#6B7186",
+                      marginTop: 8,
+                      fontFamily: "'Orbitron', monospace",
+                    }}>
+                      {new Date(item.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
-
-      <style jsx global>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
     </div>
   );
 }

@@ -1,34 +1,54 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, SimulationAgent, emptySimulationState } from "@/lib/simulation-state";
+
+interface Agent {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+  status: "idle" | "active" | "working";
+  currentTask: string;
+  progress: number;
+  tasksCompleted: number;
+}
+
+interface DemoState {
+  agents: Agent[];
+  business: { name: string };
+}
 
 const statusColors = {
   idle: { bg: "rgba(100,116,139,0.2)", border: "#64748B", text: "#94A3B8", label: "IDLE" },
+  active: { bg: "rgba(16,185,129,0.2)", border: "#10B981", text: "#34D399", label: "ACTIVE" },
   working: { bg: "rgba(124,58,237,0.2)", border: "#7C3AED", text: "#A78BFA", label: "WORKING" },
-  complete: { bg: "rgba(16,185,129,0.2)", border: "#10B981", text: "#34D399", label: "COMPLETE" },
 };
 
-export default function AIWorkforce() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+export default function AIWorkforce({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const agents = simState.agents;
-  const hasData = simState.businessName && simState.phase !== "startup";
+  const agents = state?.agents || [];
 
   return (
     <div style={{
@@ -62,40 +82,25 @@ export default function AIWorkforce() {
           }}>
             Your AI Team
           </h1>
-          {hasData && (
-            <p style={{ color: "#6B7186", fontSize: 13, marginTop: 4 }}>
-              {simState.businessName}
-            </p>
-          )}
         </div>
         <div style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
           padding: "8px 16px",
-          background: agents.filter(a => a.status === "working").length > 0 
-            ? "rgba(124,58,237,0.1)" 
-            : "rgba(16,185,129,0.1)",
-          border: agents.filter(a => a.status === "working").length > 0 
-            ? "1px solid rgba(124,58,237,0.3)"
-            : "1px solid rgba(16,185,129,0.3)",
+          background: "rgba(16,185,129,0.1)",
+          border: "1px solid rgba(16,185,129,0.3)",
           borderRadius: 8,
         }}>
           <span style={{
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: agents.filter(a => a.status === "working").length > 0 ? "#A78BFA" : "#10B981",
-            animation: agents.filter(a => a.status === "working").length > 0 ? "pulse 2s infinite" : "none",
+            background: "#10B981",
+            animation: "pulse 2s infinite",
           }} />
-          <span style={{ 
-            color: agents.filter(a => a.status === "working").length > 0 ? "#A78BFA" : "#10B981", 
-            fontSize: 12 
-          }}>
-            {agents.filter(a => a.status === "working").length > 0 
-              ? `${agents.filter(a => a.status === "working").length} Working`
-              : `${agents.filter(a => a.status === "complete").length} Complete`
-            }
+          <span style={{ color: "#10B981", fontSize: 12 }}>
+            {agents.filter(a => a.status !== "idle").length} Active
           </span>
         </div>
       </div>
@@ -108,14 +113,9 @@ export default function AIWorkforce() {
         marginBottom: 24,
       }}>
         <StatCard label="Total Agents" value={agents.length} icon="🤖" />
-        <StatCard label="Working" value={agents.filter(a => a.status === "working").length} icon="⚡" color="#A78BFA" />
-        <StatCard label="Complete" value={agents.filter(a => a.status === "complete").length} icon="✅" color="#10B981" />
-        <StatCard 
-          label="Tasks Done" 
-          value={simState.tasks.filter(t => t.status === "complete").length} 
-          icon="📋" 
-          color="#2F80FF" 
-        />
+        <StatCard label="Active" value={agents.filter(a => a.status === "active").length} icon="✅" color="#10B981" />
+        <StatCard label="Working" value={agents.filter(a => a.status === "working").length} icon="⚡" color="#7C3AED" />
+        <StatCard label="Tasks Done" value={agents.reduce((sum, a) => sum + a.tasksCompleted, 0)} icon="📋" color="#2F80FF" />
       </div>
 
       {/* Agents Grid */}
@@ -145,7 +145,7 @@ export default function AIWorkforce() {
             No AI Agents Deployed Yet
           </div>
           <div style={{ color: "#6B7186", fontSize: 14 }}>
-            Start a business build from <span style={{ color: "#FF4EDB" }}>🔴 LIVE BUILD</span> to deploy your AI workforce
+            Start a business build from Live Demo to deploy your AI workforce
           </div>
         </div>
       ) : (
@@ -155,7 +155,7 @@ export default function AIWorkforce() {
           gap: 20,
         }}>
           {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} tasks={simState.tasks} />
+            <AgentCard key={agent.id} agent={agent} />
           ))}
         </div>
       )}
@@ -189,10 +189,8 @@ function StatCard({ label, value, icon, color = "#F5F7FA" }: { label: string; va
   );
 }
 
-function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
-  const statusStyle = statusColors[agent.status] || statusColors.idle;
-  const agentTasks = tasks.filter(t => t.agent === agent.id);
-  const currentTask = agentTasks.find(t => t.status === "in_progress");
+function AgentCard({ agent }: { agent: Agent }) {
+  const statusStyle = statusColors[agent.status];
 
   return (
     <div style={{
@@ -249,7 +247,7 @@ function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
             fontSize: 12,
             color: statusStyle.text,
           }}>
-            {agent.role} • Wave {agent.wave}
+            {agent.role}
           </div>
         </div>
       </div>
@@ -275,7 +273,7 @@ function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
           color: "#F5F7FA",
           lineHeight: 1.4,
         }}>
-          {currentTask?.title || (agent.status === "complete" ? "All tasks complete ✓" : "Awaiting instructions...")}
+          {agent.currentTask || "Awaiting instructions..."}
         </div>
       </div>
 
@@ -288,7 +286,7 @@ function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
             marginBottom: 6,
           }}>
             <span style={{ fontSize: 10, color: "#6B7186" }}>PROGRESS</span>
-            <span style={{ fontSize: 10, color: statusStyle.text }}>{Math.round(agent.progress)}%</span>
+            <span style={{ fontSize: 10, color: statusStyle.text }}>{agent.progress}%</span>
           </div>
           <div style={{
             height: 6,
@@ -316,9 +314,7 @@ function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
         borderTop: "1px solid rgba(255,255,255,0.06)",
       }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#F5F7FA" }}>
-            {agentTasks.filter(t => t.status === "complete").length}
-          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#F5F7FA" }}>{agent.tasksCompleted}</div>
           <div style={{ fontSize: 10, color: "#6B7186" }}>COMPLETED</div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -334,9 +330,8 @@ function AgentCard({ agent, tasks }: { agent: SimulationAgent; tasks: any[] }) {
               height: 6,
               borderRadius: "50%",
               background: statusStyle.text,
-              animation: agent.status === "working" ? "pulse 1s infinite" : "none",
             }} />
-            {agent.status === "working" ? "Working..." : agent.status === "complete" ? "Done" : "Idle"}
+            {agent.status === "working" ? "Working..." : agent.status === "active" ? "Ready" : "Idle"}
           </div>
         </div>
       </div>

@@ -1,70 +1,94 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, emptySimulationState } from "@/lib/simulation-state";
 
-export default function RevenueEngine() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+interface DemoState {
+  business: {
+    name: string;
+    niche: string;
+    targetAudience: string;
+    mainOffer: string;
+  };
+  metrics: {
+    revenue: number;
+    leads: number;
+    adSpend: number;
+    cpa: number;
+    conversionRate: number;
+  };
+  agents: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    role: string;
+    status: string;
+    tasksCompleted: number;
+  }>;
+}
+
+export default function RevenueEngine({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const hasData = simState.businessName && simState.phase !== "startup";
-  const metrics = simState.metrics;
-  const agents = simState.agents;
+  const hasData = state?.business?.name && state.business.name !== "Demo Business";
+  const metrics = state?.metrics;
+  const agents = state?.agents || [];
 
-  // Derive revenue channels from simulation data
+  // Revenue engine channels based on agents
   const channels = [
     {
       name: "Cold Outreach",
       icon: "📧",
-      status: agents.find(a => a.id === "outbound")?.status === "working" || agents.find(a => a.id === "outbound")?.status === "complete" ? "active" : "pending",
-      leads: Math.floor(metrics.prospects * 0.6),
+      status: agents.find(a => a.id === "outreach")?.status === "active" ? "active" : "pending",
+      leads: Math.floor((metrics?.leads || 0) * 0.6),
       conversion: "4.2%",
-      agent: "Outbound Bot",
+      agent: "Outreach",
     },
     {
-      name: "Website Leads",
-      icon: "🌐",
-      status: agents.find(a => a.id === "website")?.status === "complete" ? "active" : "pending",
-      leads: Math.floor(metrics.prospects * 0.25),
+      name: "Inbound Leads",
+      icon: "🎯",
+      status: agents.find(a => a.id === "scout")?.status === "active" ? "active" : "pending",
+      leads: Math.floor((metrics?.leads || 0) * 0.25),
       conversion: "8.5%",
-      agent: "Website Bot",
+      agent: "Scout",
     },
     {
-      name: "Content Pipeline",
-      icon: "📱",
-      status: agents.find(a => a.id === "content")?.status === "working" || agents.find(a => a.id === "content")?.status === "complete" ? "active" : "pending",
-      leads: Math.floor(metrics.prospects * 0.15),
+      name: "Referrals",
+      icon: "🤝",
+      status: "pending",
+      leads: Math.floor((metrics?.leads || 0) * 0.15),
       conversion: "12.3%",
-      agent: "Content Bot",
+      agent: "Fulfill",
     },
   ];
 
-  // Build pipeline from metrics
   const pipeline = [
-    { stage: "Prospects", count: metrics.prospects, color: "#2F80FF" },
-    { stage: "DMs Sent", count: metrics.dms, color: "#7B61FF" },
-    { stage: "Replies", count: metrics.replies, color: "#FF4EDB" },
-    { stage: "Calls", count: metrics.calls, color: "#10B981" },
-    { stage: "Closed", count: Math.floor(metrics.calls * 0.25), color: "#F59E0B" },
+    { stage: "Leads", count: metrics?.leads || 0, color: "#2F80FF" },
+    { stage: "Contacted", count: Math.floor((metrics?.leads || 0) * 0.5), color: "#7B61FF" },
+    { stage: "Replied", count: Math.floor((metrics?.leads || 0) * 0.1), color: "#FF4EDB" },
+    { stage: "Booked", count: Math.floor((metrics?.leads || 0) * 0.02), color: "#10B981" },
+    { stage: "Closed", count: Math.floor((metrics?.leads || 0) * 0.005), color: "#F59E0B" },
   ];
-
-  // Calculate revenue projections
-  const avgDealSize = 5000;
-  const projectedRevenue = Math.floor(metrics.calls * 0.25) * avgDealSize;
 
   return (
     <div style={{
@@ -94,11 +118,6 @@ export default function RevenueEngine() {
         }}>
           Lead Generation & Sales
         </h1>
-        {hasData && (
-          <p style={{ color: "#6B7186", fontSize: 13, marginTop: 4 }}>
-            {simState.businessName}
-          </p>
-        )}
       </div>
 
       {loading ? (
@@ -141,19 +160,6 @@ export default function RevenueEngine() {
         </div>
       ) : (
         <>
-          {/* Revenue Summary */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 16,
-            marginBottom: 24,
-          }}>
-            <MetricCard label="Prospects" value={metrics.prospects} icon="👥" color="#2F80FF" />
-            <MetricCard label="DMs Sent" value={metrics.dms} icon="💬" color="#7B61FF" />
-            <MetricCard label="Calls Booked" value={metrics.calls} icon="📞" color="#10B981" />
-            <MetricCard label="Projected Revenue" value={`$${projectedRevenue.toLocaleString()}`} icon="💰" color="#F59E0B" />
-          </div>
-
           {/* Pipeline Funnel */}
           <div style={{
             background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
@@ -177,7 +183,7 @@ export default function RevenueEngine() {
               height: 200,
               gap: 16,
             }}>
-              {pipeline.map((stage) => {
+              {pipeline.map((stage, i) => {
                 const maxCount = pipeline[0].count || 1;
                 const height = Math.max(20, (stage.count / maxCount) * 180);
                 return (
@@ -281,7 +287,7 @@ export default function RevenueEngine() {
             ))}
           </div>
 
-          {/* Active Revenue Agents */}
+          {/* Offer Stack */}
           <div style={{
             background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
             borderRadius: 16,
@@ -294,70 +300,33 @@ export default function RevenueEngine() {
               color: "#F5F7FA",
               marginBottom: 20,
             }}>
-              🤖 Revenue Agents
+              💎 Offer Stack
             </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {agents.filter(a => ["outbound", "email", "aisales", "website", "cart"].includes(a.id)).map((agent) => (
-                <div
-                  key={agent.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: 16,
-                    background: "rgba(255,255,255,0.03)",
-                    borderRadius: 10,
-                    borderLeft: `3px solid ${agent.status === "complete" ? "#10B981" : agent.status === "working" ? "#A78BFA" : "#6B7186"}`,
-                  }}
-                >
-                  <span style={{ fontSize: 24 }}>{agent.avatar}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#F5F7FA" }}>{agent.name}</div>
-                    <div style={{ fontSize: 11, color: "#6B7186" }}>{agent.role}</div>
-                  </div>
-                  <span style={{
-                    fontSize: 9,
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    background: agent.status === "complete" ? "rgba(16,185,129,0.2)" : 
-                               agent.status === "working" ? "rgba(124,58,237,0.2)" : "rgba(100,116,139,0.2)",
-                    color: agent.status === "complete" ? "#10B981" : 
-                           agent.status === "working" ? "#A78BFA" : "#94A3B8",
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                  }}>
-                    {agent.status}
-                  </span>
-                </div>
-              ))}
-              {agents.filter(a => ["outbound", "email", "aisales", "website", "cart"].includes(a.id)).length === 0 && (
-                <div style={{ color: "#6B7186", fontSize: 13, textAlign: "center", padding: 20 }}>
-                  Revenue agents will appear here as they spawn...
-                </div>
-              )}
+            <div style={{
+              padding: 20,
+              background: "rgba(255,255,255,0.03)",
+              borderRadius: 12,
+              borderLeft: "4px solid #FF4EDB",
+            }}>
+              <div style={{
+                fontSize: 18,
+                fontWeight: 600,
+                color: "#F5F7FA",
+                marginBottom: 8,
+              }}>
+                {state?.business?.mainOffer || "Main Offer"}
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: "#8A8F98",
+                lineHeight: 1.5,
+              }}>
+                Target: {state?.business?.targetAudience || "Not defined"}
+              </div>
             </div>
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function MetricCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
-  return (
-    <div style={{
-      background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-      borderRadius: 12,
-      border: "1px solid rgba(255,255,255,0.08)",
-      padding: 20,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 24 }}>{icon}</span>
-        <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
-          <div style={{ fontSize: 11, color: "#6B7186", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,47 +1,94 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, emptySimulationState } from "@/lib/simulation-state";
+
+interface DemoState {
+  business: {
+    name: string;
+    niche: string;
+    targetAudience: string;
+    mainOffer: string;
+  };
+  metrics: {
+    revenue: number;
+    leads: number;
+    adSpend: number;
+    cpa: number;
+    conversionRate: number;
+  };
+  agents: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    status: string;
+    tasksCompleted: number;
+  }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: string;
+    priority: string;
+  }>;
+  activity: Array<{
+    id: string;
+    message: string;
+    timestamp: string;
+    type: "info" | "success" | "warning";
+  }>;
+}
 
 const activityColors = {
   info: "#2F80FF",
   success: "#10B981",
   warning: "#F59E0B",
-  signal: "#FF4EDB",
-  gate: "#7B61FF",
-  task: "#A78BFA",
-  deliverable: "#10B981",
 };
 
-export default function CEODashboard() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+export default function CEODashboard({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    // Poll for updates
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const hasData = simState.businessName && simState.phase !== "startup";
-  const agents = simState.agents;
-  const tasks = simState.tasks;
-  const activity = simState.activity;
-  const metrics = simState.metrics;
-  const deliverables = simState.deliverables;
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "#0B0F19",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#6B7186",
+      }}>
+        Loading dashboard...
+      </div>
+    );
+  }
 
-  // Calculate revenue projection based on metrics
-  const projectedRevenue = metrics.calls * 5000; // $5k per call
-  const pipelineValue = metrics.prospects * 100;
+  const business = state?.business;
+  const metrics = state?.metrics;
+  const agents = state?.agents || [];
+  const tasks = state?.tasks || [];
+  const activity = state?.activity || [];
+
+  const hasData = business?.name && business.name !== "Demo Business";
 
   return (
     <div style={{
@@ -73,7 +120,7 @@ export default function CEODashboard() {
           margin: 0,
           fontFamily: "'Space Grotesk', sans-serif",
         }}>
-          {hasData ? simState.businessName : "Your AI Business"}
+          {hasData ? business.name : "Your AI Business"}
         </h1>
         {hasData && (
           <p style={{
@@ -81,7 +128,7 @@ export default function CEODashboard() {
             margin: "8px 0 0",
             fontSize: 14,
           }}>
-            Phase: {simState.phase.toUpperCase()}
+            {business.niche}
           </p>
         )}
       </div>
@@ -126,34 +173,34 @@ export default function CEODashboard() {
             marginBottom: 24,
           }}>
             <MetricCard
-              label="Prospects"
-              value={metrics.prospects}
+              label="Leads"
+              value={metrics?.leads || 0}
               icon="👥"
               color="#2F80FF"
             />
             <MetricCard
-              label="DMs Sent"
-              value={metrics.dms}
-              icon="💬"
+              label="Agents Active"
+              value={agents.filter(a => a.status !== "idle").length}
+              icon="🤖"
               color="#7B61FF"
             />
             <MetricCard
-              label="Replies"
-              value={metrics.replies}
-              icon="✉️"
+              label="Tasks Done"
+              value={tasks.filter(t => t.status === "done").length}
+              icon="✅"
               color="#10B981"
             />
             <MetricCard
-              label="Calls Booked"
-              value={metrics.calls}
-              icon="📞"
-              color="#FF4EDB"
+              label="In Progress"
+              value={tasks.filter(t => t.status === "in-progress").length}
+              icon="⚡"
+              color="#F59E0B"
             />
             <MetricCard
-              label="Revenue Proj"
-              value={`$${projectedRevenue.toLocaleString()}`}
-              icon="💰"
-              color="#F59E0B"
+              label="Conversion"
+              value={`${metrics?.conversionRate || 0}%`}
+              icon="📈"
+              color="#FF4EDB"
             />
           </div>
 
@@ -181,16 +228,6 @@ export default function CEODashboard() {
                 gap: 8,
               }}>
                 <span>📡</span> Recent Activity
-                <span style={{
-                  marginLeft: "auto",
-                  fontSize: 10,
-                  padding: "2px 8px",
-                  borderRadius: 10,
-                  background: "rgba(255,78,219,0.2)",
-                  color: "#FF4EDB",
-                }}>
-                  {activity.length}
-                </span>
               </h2>
               
               {activity.length === 0 ? (
@@ -200,7 +237,7 @@ export default function CEODashboard() {
                   textAlign: "center",
                   padding: 40,
                 }}>
-                  No activity yet — start a build to see updates
+                  No activity yet
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -211,7 +248,7 @@ export default function CEODashboard() {
                         padding: 14,
                         background: "rgba(255,255,255,0.03)",
                         borderRadius: 10,
-                        borderLeft: `3px solid ${activityColors[item.type] || "#6B7186"}`,
+                        borderLeft: `3px solid ${activityColors[item.type]}`,
                       }}
                     >
                       <p style={{
@@ -222,16 +259,6 @@ export default function CEODashboard() {
                       }}>
                         {item.message}
                       </p>
-                      {item.signal && (
-                        <p style={{
-                          color: "#FF4EDB",
-                          fontSize: 9,
-                          margin: "6px 0 0",
-                          fontFamily: "'Orbitron', monospace",
-                        }}>
-                          {item.signal}
-                        </p>
-                      )}
                       <p style={{
                         color: "#6B7186",
                         fontSize: 11,
@@ -246,13 +273,13 @@ export default function CEODashboard() {
               )}
             </div>
 
-            {/* Right Column - Agents & Deliverables */}
+            {/* Right Column - Agents & Business Info */}
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {/* Deliverables */}
+              {/* Business Info */}
               <div style={{
                 background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
                 borderRadius: 16,
-                border: "1px solid rgba(16,185,129,0.3)",
+                border: "1px solid rgba(255,255,255,0.08)",
                 padding: 24,
               }}>
                 <h2 style={{
@@ -264,71 +291,11 @@ export default function CEODashboard() {
                   alignItems: "center",
                   gap: 8,
                 }}>
-                  <span>📦</span> Deliverables
-                  <span style={{
-                    marginLeft: "auto",
-                    fontSize: 10,
-                    padding: "2px 8px",
-                    borderRadius: 10,
-                    background: "rgba(16,185,129,0.2)",
-                    color: "#10B981",
-                  }}>
-                    {deliverables.filter(d => d.status === "complete").length}/{deliverables.length}
-                  </span>
+                  <span>🏢</span> Business Profile
                 </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {deliverables.length === 0 ? (
-                    <div style={{ color: "#6B7186", fontSize: 12, textAlign: "center", padding: 20 }}>
-                      Deliverables will appear here...
-                    </div>
-                  ) : (
-                    deliverables.map((del) => (
-                      <div
-                        key={del.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: 10,
-                          background: del.status === "complete" 
-                            ? "rgba(16,185,129,0.1)" 
-                            : "rgba(255,255,255,0.03)",
-                          borderRadius: 8,
-                          border: del.status === "complete"
-                            ? "1px solid rgba(16,185,129,0.3)"
-                            : "1px solid rgba(255,255,255,0.05)",
-                        }}
-                      >
-                        <span style={{ fontSize: 18 }}>
-                          {del.type === "website" ? "🌐" :
-                           del.type === "cart" ? "🛒" :
-                           del.type === "email" ? "📧" :
-                           del.type === "content" ? "📱" :
-                           del.type === "funnel" ? "📞" :
-                           del.type === "ads" ? "📺" : "📄"}
-                        </span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "#F5F7FA" }}>
-                            {del.title}
-                          </div>
-                          <div style={{ fontSize: 10, color: "#6B7186" }}>
-                            Wave {del.wave}
-                          </div>
-                        </div>
-                        <span style={{
-                          fontSize: 10,
-                          padding: "3px 8px",
-                          borderRadius: 4,
-                          background: del.status === "complete" ? "rgba(16,185,129,0.2)" : "rgba(124,58,237,0.2)",
-                          color: del.status === "complete" ? "#10B981" : "#A78BFA",
-                          textTransform: "uppercase",
-                          fontWeight: 600,
-                        }}>
-                          {del.status}
-                        </span>
-                      </div>
-                    ))
-                  )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <InfoRow label="Target" value={business.targetAudience} />
+                  <InfoRow label="Offer" value={business.mainOffer} />
                 </div>
               </div>
 
@@ -349,57 +316,41 @@ export default function CEODashboard() {
                   gap: 8,
                 }}>
                   <span>🤖</span> AI Team
-                  <span style={{
-                    marginLeft: "auto",
-                    fontSize: 10,
-                    padding: "2px 8px",
-                    borderRadius: 10,
-                    background: "rgba(16,185,129,0.2)",
-                    color: "#10B981",
-                  }}>
-                    {agents.filter(a => a.status === "complete").length}/{agents.length}
-                  </span>
                 </h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {agents.length === 0 ? (
-                    <div style={{ color: "#6B7186", fontSize: 12, textAlign: "center", padding: 20 }}>
-                      Agents will spawn during build...
-                    </div>
-                  ) : (
-                    agents.map((agent) => (
-                      <div
-                        key={agent.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: 10,
-                          background: "rgba(255,255,255,0.03)",
-                          borderRadius: 8,
-                        }}
-                      >
-                        <span style={{ fontSize: 20 }}>{agent.avatar}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "#F5F7FA" }}>
-                            {agent.name}
-                          </div>
+                  {agents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: 10,
+                        background: "rgba(255,255,255,0.03)",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>{agent.avatar}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#F5F7FA" }}>
+                          {agent.name}
                         </div>
-                        <span style={{
-                          fontSize: 10,
-                          padding: "3px 8px",
-                          borderRadius: 4,
-                          background: agent.status === "complete" ? "rgba(16,185,129,0.2)" : 
-                                     agent.status === "working" ? "rgba(124,58,237,0.2)" : "rgba(100,116,139,0.2)",
-                          color: agent.status === "complete" ? "#10B981" : 
-                                 agent.status === "working" ? "#A78BFA" : "#94A3B8",
-                          textTransform: "uppercase",
-                          fontWeight: 600,
-                        }}>
-                          {agent.status}
-                        </span>
                       </div>
-                    ))
-                  )}
+                      <span style={{
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 4,
+                        background: agent.status === "active" ? "rgba(16,185,129,0.2)" : 
+                                   agent.status === "working" ? "rgba(124,58,237,0.2)" : "rgba(100,116,139,0.2)",
+                        color: agent.status === "active" ? "#10B981" : 
+                               agent.status === "working" ? "#A78BFA" : "#94A3B8",
+                        textTransform: "uppercase",
+                        fontWeight: 600,
+                      }}>
+                        {agent.status}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -424,6 +375,19 @@ function MetricCard({ label, value, icon, color }: { label: string; value: numbe
           <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
           <div style={{ fontSize: 11, color: "#6B7186", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: "#6B7186", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13, color: "#F5F7FA", lineHeight: 1.4 }}>
+        {value || "Not set"}
       </div>
     </div>
   );

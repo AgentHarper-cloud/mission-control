@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { processPhase, lockDeliverable, iterateDeliverable, formatChatTranscript, type WebhookResponse } from "@/lib/webhook-client";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Message {
   id: string;
@@ -15,19 +14,6 @@ interface VisionChatProps {
   onComplete: (visionSummary: string) => void;
 }
 
-// Add signal to localStorage for LiveDemo to pick up
-function addSignalToLog(signal: string, message: string) {
-  const SIGNALS_KEY = "aim-demo-signals";
-  const existing = JSON.parse(localStorage.getItem(SIGNALS_KEY) || "[]");
-  existing.unshift({
-    id: `signal-${Date.now()}-${Math.random()}`,
-    signal,
-    message,
-    timestamp: new Date().toISOString(),
-  });
-  localStorage.setItem(SIGNALS_KEY, JSON.stringify(existing.slice(0, 100)));
-}
-
 export default function VisionChat({ businessName, onComplete }: VisionChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -35,15 +21,6 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
   const [isComplete, setIsComplete] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Solomon webhook states
-  const [solomonWorking, setSolomonWorking] = useState(false);
-  const [deliverableReady, setDeliverableReady] = useState(false);
-  const [deliverable, setDeliverable] = useState<WebhookResponse | null>(null);
-  const [showDeliverable, setShowDeliverable] = useState(false);
-  const [feedbackInput, setFeedbackInput] = useState("");
-  const [isLocking, setIsLocking] = useState(false);
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -54,13 +31,20 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
 
   // Focus input after loading
   useEffect(() => {
-    if (!isLoading && !showDeliverable) {
+    if (!isLoading) {
       inputRef.current?.focus();
     }
-  }, [isLoading, showDeliverable]);
+  }, [isLoading]);
 
   // Start conversation on mount (only once)
-  const startConversation = async () => {
+  useEffect(() => {
+    if (!hasStarted && businessName) {
+      setHasStarted(true);
+      startConversation();
+    }
+  }, [businessName, hasStarted]);
+
+  const startConversation = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
@@ -73,7 +57,6 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
         body: JSON.stringify({
           messages: [],
           businessName,
-          phase: "vision",
         }),
       });
 
@@ -147,15 +130,6 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Start conversation on mount (only once)
-  useEffect(() => {
-    if (!hasStarted && businessName) {
-      setHasStarted(true);
-      startConversation();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessName]);
 
   const sendMessage = async () => {
@@ -184,7 +158,6 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
         body: JSON.stringify({
           messages: chatHistory,
           businessName,
-          phase: "vision",
         }),
       });
 
@@ -233,18 +206,12 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
 
       // Check if conversation is complete
       const lowerMsg = assistantMessage.toLowerCase();
-      const totalMessages = messages.length + 2; // +2 for user message and assistant response
-      
-      if (lowerMsg.includes("brand discovery") || 
-          lowerMsg.includes("brand identity") ||
+      if (lowerMsg.includes("revenue planner") || 
           lowerMsg.includes("continue to") ||
           lowerMsg.includes("click") ||
-          lowerMsg.includes("clear picture") ||
-          totalMessages >= 8) {
+          lowerMsg.includes("ready to choose") ||
+          messages.length >= 8) {
         setIsComplete(true);
-        
-        // Automatically trigger Solomon to work on deliverable
-        triggerSolomonWork([...messages, userMessage, { id: messageId, role: "assistant" as const, content: assistantMessage, timestamp: new Date().toISOString() }]);
       }
 
     } catch (error) {
@@ -260,95 +227,18 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
     }
   };
 
-  // Trigger Solomon webhook to process the deliverable
-  const triggerSolomonWork = async (currentMessages: Message[]) => {
-    setSolomonWorking(true);
-    addSignalToLog("[SOLOMON: WORKING]", "🤖 Solomon is analyzing your vision...");
-    
-    try {
-      const transcript = formatChatTranscript(
-        currentMessages.map(m => ({ role: m.role, content: m.content })),
-        "COO Agent"
-      );
-      
-      const result = await processPhase("vision", businessName, transcript);
-      
-      if (result.status === "complete") {
-        setDeliverable(result);
-        setDeliverableReady(true);
-        addSignalToLog("[VISION: DELIVERABLE READY]", "✅ Vision document generated");
-      } else {
-        console.error("Solomon processing failed:", result.message);
-      }
-    } catch (err) {
-      console.error("Solomon webhook error:", err);
-    } finally {
-      setSolomonWorking(false);
-    }
-  };
-
-  // Handle iteration request
-  const handleIterate = async () => {
-    if (!feedbackInput.trim()) return;
-    
-    setSolomonWorking(true);
-    addSignalToLog("[SOLOMON: ITERATING]", "🔄 Solomon is updating based on feedback...");
-    
-    try {
-      const transcript = formatChatTranscript(
-        messages.map(m => ({ role: m.role, content: m.content })),
-        "COO Agent"
-      );
-      
-      const result = await iterateDeliverable("vision", businessName, transcript, feedbackInput);
-      
-      if (result.status === "complete") {
-        setDeliverable(result);
-        setFeedbackInput("");
-        addSignalToLog("[VISION: UPDATED]", "✅ Vision document updated");
-      }
-    } catch (err) {
-      console.error("Iteration error:", err);
-    } finally {
-      setSolomonWorking(false);
-    }
-  };
-
-  // Handle lock and continue
-  const handleLock = async () => {
-    setIsLocking(true);
-    addSignalToLog("[SOLOMON: LOCKING]", "🔒 Solomon is finalizing vision document...");
-    
-    try {
-      const transcript = formatChatTranscript(
-        messages.map(m => ({ role: m.role, content: m.content })),
-        "COO Agent"
-      );
-      
-      const result = await lockDeliverable("vision", businessName, transcript);
-      
-      if (result.status === "complete") {
-        addSignalToLog(result.signal || "[VISION: LOCKED]", "✅ Vision locked and saved to Google Drive");
-        if (result.fileUrl) {
-          addSignalToLog("[GDRIVE: FILE CREATED]", `📁 ${result.fileUrl}`);
-        }
-        
-        // Wait a moment then transition
-        setTimeout(() => {
-          onComplete(transcript);
-        }, 1500);
-      }
-    } catch (err) {
-      console.error("Lock error:", err);
-      setIsLocking(false);
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  // Extract vision summary from conversation
+  const extractVisionSummary = () => {
+    return messages
+      .map(m => `${m.role === "user" ? "User" : "COO"}: ${m.content}`)
+      .join("\n\n");
   };
 
   return (
@@ -406,23 +296,6 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
               Building the blueprint for {businessName}
             </div>
           </div>
-          
-          {/* Solomon Working Indicator */}
-          {solomonWorking && (
-            <div style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 16px",
-              background: "rgba(123,97,255,0.2)",
-              borderRadius: 20,
-              border: "1px solid rgba(123,97,255,0.4)",
-            }}>
-              <span style={{ animation: "pulse 1s infinite" }}>👑</span>
-              <span style={{ fontSize: 12, color: "#A78BFA" }}>Solomon is working...</span>
-            </div>
-          )}
         </div>
         {error && (
           <div style={{
@@ -515,215 +388,34 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Deliverable Preview Panel */}
-      {deliverableReady && showDeliverable && deliverable && (
-        <div style={{
-          padding: "20px 24px",
-          background: "linear-gradient(135deg, #10B98115, #10B98108)",
-          borderTop: "1px solid #10B981",
-          maxHeight: "40vh",
-          overflowY: "auto",
-        }}>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}>
-            <h3 style={{ margin: 0, color: "#10B981", fontSize: 16 }}>
-              📋 Vision Document Preview
-            </h3>
-            <button
-              onClick={() => setShowDeliverable(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#8A8F98",
-                cursor: "pointer",
-                fontSize: 18,
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          
-          {/* HTML Preview */}
-          <div 
-            dangerouslySetInnerHTML={{ __html: deliverable.preview || "" }}
-            style={{ marginBottom: 16 }}
-          />
-          
-          {/* Feedback Input */}
-          <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-            <input
-              type="text"
-              value={feedbackInput}
-              onChange={(e) => setFeedbackInput(e.target.value)}
-              placeholder="Request changes... (e.g., 'Add more detail about target audience')"
-              disabled={solomonWorking}
-              style={{
-                flex: 1,
-                padding: "12px 16px",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 8,
-                color: "#F5F7FA",
-                fontSize: 14,
-              }}
-            />
-            <button
-              onClick={handleIterate}
-              disabled={!feedbackInput.trim() || solomonWorking}
-              style={{
-                padding: "12px 20px",
-                background: feedbackInput.trim() && !solomonWorking
-                  ? "linear-gradient(135deg, #7B61FF, #A78BFA)"
-                  : "rgba(255,255,255,0.1)",
-                borderRadius: 8,
-                border: "none",
-                color: feedbackInput.trim() && !solomonWorking ? "#FFF" : "#6B7186",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: feedbackInput.trim() && !solomonWorking ? "pointer" : "not-allowed",
-              }}
-            >
-              🔄 Iterate
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Continue/Lock Panel */}
+      {/* Continue Button (shows when conversation is complete OR after enough messages) */}
       {(isComplete || messages.length >= 6) && (
         <div style={{
           padding: "16px 24px",
-          background: isLocking 
-            ? "linear-gradient(135deg, #10B98120, #10B98110)"
-            : "linear-gradient(135deg, #FF4EDB20, #FF4EDB10)",
-          borderTop: `1px solid ${isLocking ? "#10B981" : "#FF4EDB"}`,
+          background: "linear-gradient(135deg, #10B98120, #10B98110)",
+          borderTop: "1px solid #10B981",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 12,
+          justifyContent: "center",
         }}>
-          {/* Solomon Working Status */}
-          {solomonWorking && (
-            <div style={{
+          <button
+            onClick={() => onComplete(extractVisionSummary())}
+            style={{
+              padding: "16px 40px",
+              background: "linear-gradient(135deg, #10B981, #059669)",
+              borderRadius: 10,
+              border: "none",
+              color: "#FFF",
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "'Orbitron', monospace",
               display: "flex",
               alignItems: "center",
               gap: 10,
-              padding: "12px 20px",
-              background: "rgba(123,97,255,0.1)",
-              borderRadius: 8,
-              border: "1px solid rgba(123,97,255,0.3)",
-            }}>
-              <span style={{ animation: "pulse 1s infinite" }}>👑</span>
-              <span style={{ color: "#A78BFA", fontSize: 14 }}>
-                Solomon is analyzing your vision...
-              </span>
-            </div>
-          )}
-
-          {/* Deliverable Ready */}
-          {deliverableReady && !solomonWorking && !isLocking && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 20px",
-              background: "rgba(16,185,129,0.1)",
-              borderRadius: 8,
-              border: "1px solid rgba(16,185,129,0.3)",
-            }}>
-              <span>✅</span>
-              <span style={{ color: "#10B981", fontSize: 14 }}>
-                Vision document ready!
-              </span>
-              <button
-                onClick={() => setShowDeliverable(!showDeliverable)}
-                style={{
-                  marginLeft: 8,
-                  padding: "4px 12px",
-                  background: "rgba(16,185,129,0.2)",
-                  borderRadius: 4,
-                  border: "1px solid rgba(16,185,129,0.4)",
-                  color: "#10B981",
-                  fontSize: 12,
-                  cursor: "pointer",
-                }}
-              >
-                {showDeliverable ? "Hide" : "Preview"}
-              </button>
-            </div>
-          )}
-
-          {/* Locking Status */}
-          {isLocking && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 20px",
-              background: "rgba(16,185,129,0.1)",
-              borderRadius: 8,
-              border: "1px solid rgba(16,185,129,0.3)",
-            }}>
-              <span style={{ animation: "pulse 1s infinite" }}>🔒</span>
-              <span style={{ color: "#10B981", fontSize: 14 }}>
-                Locking Vision and saving to Google Drive...
-              </span>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          {deliverableReady && !solomonWorking && !isLocking && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={handleLock}
-                style={{
-                  padding: "16px 40px",
-                  background: "linear-gradient(135deg, #10B981, #059669)",
-                  borderRadius: 10,
-                  border: "none",
-                  color: "#FFF",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "'Orbitron', monospace",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                🔒 Lock & Continue to Brand Discovery
-              </button>
-            </div>
-          )}
-
-          {/* Still working - show continue anyway after delay */}
-          {!deliverableReady && !solomonWorking && messages.length >= 6 && (
-            <button
-              onClick={() => {
-                triggerSolomonWork(messages);
-              }}
-              style={{
-                padding: "16px 40px",
-                background: "linear-gradient(135deg, #FF4EDB, #7B61FF)",
-                borderRadius: 10,
-                border: "none",
-                color: "#FFF",
-                fontSize: 16,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "'Orbitron', monospace",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              🎨 Generate Vision Document
-            </button>
-          )}
+            }}
+          >
+            ✅ Continue to Revenue Planner
+          </button>
         </div>
       )}
 
@@ -744,7 +436,7 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your response..."
-            disabled={isLoading || showDeliverable}
+            disabled={isLoading}
             rows={1}
             style={{
               flex: 1,
@@ -762,18 +454,18 @@ export default function VisionChat({ businessName, onComplete }: VisionChatProps
           />
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || isLoading || showDeliverable}
+            disabled={!input.trim() || isLoading}
             style={{
               padding: "14px 24px",
-              background: input.trim() && !isLoading && !showDeliverable
+              background: input.trim() && !isLoading
                 ? "linear-gradient(135deg, #FF4EDB, #7B61FF)"
                 : "rgba(255,255,255,0.1)",
               borderRadius: 12,
               border: "none",
-              color: input.trim() && !isLoading && !showDeliverable ? "#FFF" : "#6B7186",
+              color: input.trim() && !isLoading ? "#FFF" : "#6B7186",
               fontSize: 15,
               fontWeight: 600,
-              cursor: input.trim() && !isLoading && !showDeliverable ? "pointer" : "not-allowed",
+              cursor: input.trim() && !isLoading ? "pointer" : "not-allowed",
             }}
           >
             Send

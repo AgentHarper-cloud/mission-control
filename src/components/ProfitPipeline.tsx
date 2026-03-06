@@ -1,79 +1,93 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { loadSimulationState, SimulationState, emptySimulationState } from "@/lib/simulation-state";
 
-export default function ProfitPipeline() {
-  const [simState, setSimState] = useState<SimulationState>(emptySimulationState);
+interface DemoState {
+  business: {
+    name: string;
+    niche: string;
+    mainOffer: string;
+  };
+  metrics: {
+    revenue: number;
+    leads: number;
+    adSpend: number;
+    cpa: number;
+    conversionRate: number;
+  };
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: string;
+  }>;
+}
+
+export default function ProfitPipeline({ businessData }: { businessData?: any }) {
+  const [state, setState] = useState<DemoState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadState = () => {
-      const state = loadSimulationState();
-      if (state) {
-        setSimState(state);
+    const fetchState = async () => {
+      try {
+        const res = await fetch("/api/demo", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setState(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch demo state:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadState();
-    const interval = setInterval(loadState, 1000);
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  const hasData = simState.businessName && simState.phase !== "startup";
-  const metrics = simState.metrics;
-  const tasks = simState.tasks;
-  const deliverables = simState.deliverables;
+  const hasData = state?.business?.name && state.business.name !== "Demo Business";
+  const metrics = state?.metrics;
+  const tasks = state?.tasks || [];
 
-  // Calculate projected metrics based on simulation data
-  const leadsPerMonth = metrics.prospects * 4;
-  const avgDealSize = 5000;
-  const closeRate = 25; // % of calls that close
-  const projectedRevenue = metrics.calls * (closeRate / 100) * avgDealSize;
+  // Calculate projected metrics
+  const leadsPerMonth = (metrics?.leads || 0) * 4;
+  const avgDealSize = 500;
+  const closeRate = (metrics?.conversionRate || 2) / 100;
+  const projectedRevenue = leadsPerMonth * closeRate * avgDealSize;
   const projectedProfit = projectedRevenue * 0.7;
 
   const profitDrivers = [
     {
-      name: "Prospects Found",
-      current: metrics.prospects,
+      name: "Lead Volume",
+      current: metrics?.leads || 0,
       target: 500,
       icon: "👥",
       color: "#2F80FF",
     },
     {
-      name: "Outreach Rate",
-      current: metrics.prospects > 0 ? Math.round((metrics.dms / metrics.prospects) * 100) : 0,
-      target: 80,
+      name: "Close Rate",
+      current: metrics?.conversionRate || 0,
+      target: 5,
       unit: "%",
-      icon: "📤",
-      color: "#7B61FF",
-    },
-    {
-      name: "Reply Rate",
-      current: metrics.dms > 0 ? Math.round((metrics.replies / metrics.dms) * 100) : 0,
-      target: 40,
-      unit: "%",
-      icon: "💬",
+      icon: "🎯",
       color: "#10B981",
     },
     {
-      name: "Booking Rate",
-      current: metrics.replies > 0 ? Math.round((metrics.calls / metrics.replies) * 100) : 0,
-      target: 50,
-      unit: "%",
-      icon: "📞",
+      name: "Avg Deal Size",
+      current: avgDealSize,
+      target: 1000,
+      unit: "$",
+      icon: "💰",
       color: "#FF4EDB",
     },
-  ];
-
-  // Funnel stages with real data
-  const funnelStages = [
-    { label: "Prospects", value: metrics.prospects, color: "#2F80FF" },
-    { label: "DMs Sent", value: metrics.dms, color: "#7B61FF" },
-    { label: "Replies", value: metrics.replies, color: "#FF4EDB" },
-    { label: "Calls Booked", value: metrics.calls, color: "#10B981" },
-    { label: "Closed Deals", value: Math.floor(metrics.calls * 0.25), color: "#F59E0B" },
+    {
+      name: "Tasks Completed",
+      current: tasks.filter(t => t.status === "done").length,
+      target: 10,
+      icon: "✅",
+      color: "#7B61FF",
+    },
   ];
 
   return (
@@ -102,11 +116,6 @@ export default function ProfitPipeline() {
         }}>
           Revenue Projections
         </h1>
-        {hasData && (
-          <p style={{ color: "#6B7186", fontSize: 13, marginTop: 4 }}>
-            {simState.businessName}
-          </p>
-        )}
       </div>
 
       {loading ? (
@@ -143,7 +152,7 @@ export default function ProfitPipeline() {
             color: "#6B7186",
             fontSize: 16,
           }}>
-            Start a business build from <span style={{ color: "#FF4EDB" }}>🔴 LIVE BUILD</span> to see projections
+            Start a business build to see projections
           </div>
         </div>
       ) : (
@@ -151,7 +160,7 @@ export default function ProfitPipeline() {
           {/* Revenue Projections */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(3, 1fr)",
             gap: 20,
             marginBottom: 24,
           }}>
@@ -162,71 +171,18 @@ export default function ProfitPipeline() {
               color="#2F80FF"
             />
             <ProjectionCard
-              label="Calls/Month"
-              value={metrics.calls * 4}
-              icon="📞"
-              color="#7B61FF"
-            />
-            <ProjectionCard
               label="Projected Revenue"
-              value={`$${(projectedRevenue * 4).toLocaleString()}`}
+              value={`$${projectedRevenue.toLocaleString()}`}
               icon="💰"
               color="#10B981"
-              subtitle="/month"
             />
             <ProjectionCard
               label="Projected Profit"
-              value={`$${(projectedProfit * 4).toLocaleString()}`}
+              value={`$${projectedProfit.toLocaleString()}`}
               icon="📈"
               color="#FF4EDB"
               subtitle="70% margin"
             />
-          </div>
-
-          {/* Funnel Visualization */}
-          <div style={{
-            background: "linear-gradient(180deg, #111624 0%, #0D1117 100%)",
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.08)",
-            padding: 24,
-            marginBottom: 24,
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: "#F5F7FA",
-              marginBottom: 24,
-            }}>
-              🔻 Conversion Funnel
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {funnelStages.map((stage, i) => {
-                const widthPercent = funnelStages[0].value > 0 
-                  ? Math.max(15, (stage.value / funnelStages[0].value) * 100)
-                  : 100 - (i * 15);
-                return (
-                  <div key={stage.label}>
-                    <div style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}>
-                      <span style={{ fontSize: 13, color: "#8A8F98" }}>{stage.label}</span>
-                      <span style={{ fontSize: 18, fontWeight: 700, color: stage.color }}>{stage.value}</span>
-                    </div>
-                    <div style={{
-                      width: `${widthPercent}%`,
-                      height: 24,
-                      background: `linear-gradient(90deg, ${stage.color}, ${stage.color}60)`,
-                      borderRadius: 6,
-                      transition: "width 0.5s ease",
-                      marginLeft: "auto",
-                      marginRight: "auto",
-                    }} />
-                  </div>
-                );
-              })}
-            </div>
           </div>
 
           {/* Profit Drivers */}
@@ -274,7 +230,7 @@ export default function ProfitPipeline() {
                         </span>
                       </div>
                       <span style={{ fontSize: 18, fontWeight: 700, color: driver.color }}>
-                        {driver.current}{driver.unit || ""}
+                        {driver.unit === "$" && "$"}{driver.current}{driver.unit === "%" && "%"}
                       </span>
                     </div>
                     <div style={{
@@ -296,7 +252,7 @@ export default function ProfitPipeline() {
                       fontSize: 11,
                       color: "#6B7186",
                     }}>
-                      Target: {driver.target}{driver.unit || ""}
+                      Target: {driver.unit === "$" && "$"}{driver.target}{driver.unit === "%" && "%"}
                     </div>
                   </div>
                 );
@@ -320,23 +276,15 @@ export default function ProfitPipeline() {
               💡 Growth Formula
             </h2>
             <div style={{
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: 600,
               color: "#F5F7FA",
               fontFamily: "'Orbitron', monospace",
               textAlign: "center",
               padding: 20,
             }}>
-              {metrics.calls} calls × {closeRate}% close × ${avgDealSize.toLocaleString()} = 
-              <span style={{ color: "#10B981", marginLeft: 10 }}>${projectedRevenue.toLocaleString()}</span>
-            </div>
-            <div style={{
-              fontSize: 12,
-              color: "#6B7186",
-              textAlign: "center",
-              marginTop: 8,
-            }}>
-              Assets Built: {deliverables.filter(d => d.status === "complete").length} / {deliverables.length}
+              {leadsPerMonth} leads × {(metrics?.conversionRate || 2)}% close × ${avgDealSize} = 
+              <span style={{ color: "#10B981", marginLeft: 10 }}>${projectedRevenue.toLocaleString()}/mo</span>
             </div>
           </div>
         </>
@@ -365,7 +313,7 @@ function ProjectionCard({ label, value, icon, color, subtitle }: {
           {label}
         </span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 32, fontWeight: 700, color }}>{value}</div>
       {subtitle && (
         <div style={{ fontSize: 12, color: "#6B7186", marginTop: 4 }}>{subtitle}</div>
       )}

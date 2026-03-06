@@ -11,18 +11,11 @@ import Financials from "@/components/Financials";
 import LiveDemo from "@/components/LiveDemo";
 import RevenuePlanner from "@/components/RevenuePlanner";
 import VisionChat from "@/components/VisionChat";
-import BrandChat from "@/components/BrandChat";
-import CharacterChat from "@/components/CharacterChat";
-import StartupCheck from "@/components/StartupCheck";
-import DemoClose from "@/components/DemoClose";
 
 // Demo phases
-type DemoPhase =
-  | "preflight"    // Phase 0: System health check
+type DemoPhase = 
   | "startup"      // Enter business name
   | "vision"       // Chat with COO Agent
-  | "brand"        // Brand discovery chat
-  | "character"    // Character creation chat
   | "planner"      // Revenue Planner (Lock & Build)
   | "building"     // Watching the build happen
   | "complete";    // Done
@@ -32,32 +25,24 @@ interface DemoState {
   phase: DemoPhase;
   businessName: string;
   visionSummary: string;
-  brandSummary: string;
-  characterSummary: string;
   revenuePlannerLocked: boolean;
   revenuePlannerData: any | null;
   startedAt: string | null;
-  buildTriggered?: boolean; // True only when LOCK & BUILD just clicked
 }
 
 const defaultState: DemoState = {
-  phase: "preflight",
+  phase: "startup",
   businessName: "",
   visionSummary: "",
-  brandSummary: "",
-  characterSummary: "",
   revenuePlannerLocked: false,
   revenuePlannerData: null,
   startedAt: null,
-  buildTriggered: false,
 };
 
 // Navigation items
 const navItems = [
   { id: "live-demo", label: "🔴 LIVE BUILD", icon: "📡", color: "#FF4EDB", phases: ["building", "complete"] },
   { id: "vision-chat", label: "Vision Intake", icon: "💬", color: "#7B61FF", phases: ["vision"] },
-  { id: "brand-chat", label: "Brand Discovery", icon: "🎨", color: "#FF4EDB", phases: ["brand"] },
-  { id: "character-chat", label: "Character Creation", icon: "🎭", color: "#2F80FF", phases: ["character"] },
   { id: "revenue-planner", label: "Revenue Planner", icon: "🎯", color: "#10B981", phases: ["planner", "building", "complete"] },
   { id: "ceo-dashboard", label: "CEO Dashboard", icon: "📊", color: "#FF4EDB", phases: ["building", "complete"] },
   { id: "revenue-engine", label: "Revenue Engine", icon: "💰", color: "#10B981", phases: ["building", "complete"] },
@@ -86,10 +71,6 @@ export default function Home() {
         // Set appropriate view based on phase
         if (parsed.phase === "vision") {
           setActiveView("vision-chat");
-        } else if (parsed.phase === "brand") {
-          setActiveView("brand-chat");
-        } else if (parsed.phase === "character") {
-          setActiveView("character-chat");
         } else if (parsed.phase === "planner") {
           setActiveView("revenue-planner");
         } else if (parsed.phase === "building" || parsed.phase === "complete") {
@@ -124,29 +105,11 @@ export default function Home() {
     setActiveView("vision-chat");
   };
 
-  // Complete vision chat → go to brand
+  // Complete vision chat
   const completeVision = (visionSummary: string) => {
     updateState({
-      phase: "brand",
-      visionSummary,
-    });
-    setActiveView("brand-chat");
-  };
-
-  // Complete brand chat → go to character
-  const completeBrand = (brandSummary: string) => {
-    updateState({
-      phase: "character",
-      brandSummary,
-    });
-    setActiveView("character-chat");
-  };
-
-  // Complete character chat → go to planner
-  const completeCharacter = (characterSummary: string) => {
-    updateState({
       phase: "planner",
-      characterSummary,
+      visionSummary,
     });
     setActiveView("revenue-planner");
   };
@@ -157,7 +120,6 @@ export default function Home() {
       phase: "building",
       revenuePlannerLocked: true,
       revenuePlannerData,
-      buildTriggered: true, // Signal that user just clicked the button
     });
     setActiveView("live-demo");
   };
@@ -185,11 +147,6 @@ export default function Home() {
     );
   }
 
-  // Preflight check screen (Phase 0)
-  if (state.phase === "preflight") {
-    return <StartupCheck onReady={() => updateState({ phase: "startup" })} />;
-  }
-
   // Startup screen
   if (state.phase === "startup") {
     return <StartupScreen onStart={startDemo} />;
@@ -198,23 +155,8 @@ export default function Home() {
   // Get available nav items for current phase
   const availableNavItems = navItems.filter(item => 
     item.phases.includes(state.phase) || 
-    (state.phase === "vision" && item.id === "vision-chat") ||
-    (state.phase === "brand" && item.id === "brand-chat") ||
-    (state.phase === "character" && item.id === "character-chat")
+    (state.phase === "vision" && item.id === "vision-chat")
   );
-
-  // Get phase label for display
-  const getPhaseLabel = () => {
-    switch (state.phase) {
-      case "vision": return "Vision Intake";
-      case "brand": return "Brand Discovery";
-      case "character": return "Character Creation";
-      case "planner": return "Revenue Planner";
-      case "building": return "Building...";
-      case "complete": return "Complete";
-      default: return state.phase;
-    }
-  };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#0B0F19" }}>
@@ -282,26 +224,11 @@ export default function Home() {
               fontWeight: 600,
               color: state.phase === "complete" ? "#10B981" : "#FF4EDB",
             }}>
-              {getPhaseLabel()}
+              {state.phase === "vision" && "Vision Intake"}
+              {state.phase === "planner" && "Revenue Planner"}
+              {state.phase === "building" && "Building..."}
+              {state.phase === "complete" && "Complete"}
             </span>
-          </div>
-          
-          {/* Phase Progress */}
-          <div style={{
-            display: "flex",
-            gap: 4,
-            marginTop: 12,
-          }}>
-            {["vision", "brand", "character", "planner", "building"].map((p, i) => (
-              <div key={p} style={{
-                flex: 1,
-                height: 4,
-                borderRadius: 2,
-                background: ["vision", "brand", "character", "planner", "building", "complete"].indexOf(state.phase) >= i 
-                  ? "linear-gradient(90deg, #7B61FF, #FF4EDB)"
-                  : "rgba(255,255,255,0.1)",
-              }} />
-            ))}
           </div>
         </div>
 
@@ -381,20 +308,6 @@ export default function Home() {
             onComplete={completeVision}
           />
         )}
-        {activeView === "brand-chat" && (
-          <BrandChat
-            businessName={state.businessName}
-            visionSummary={state.visionSummary}
-            onComplete={completeBrand}
-          />
-        )}
-        {activeView === "character-chat" && (
-          <CharacterChat
-            businessName={state.businessName}
-            brandSummary={state.brandSummary}
-            onComplete={completeCharacter}
-          />
-        )}
         {activeView === "revenue-planner" && (
           <RevenuePlanner
             businessName={state.businessName}
@@ -402,19 +315,8 @@ export default function Home() {
             isLocked={state.revenuePlannerLocked}
           />
         )}
-        {activeView === "live-demo" && state.phase !== "complete" && (
-          <LiveDemo
-            businessName={state.businessName}
-            phase={state.phase}
-            revenuePlannerData={state.revenuePlannerData}
-            buildTriggered={state.buildTriggered}
-          />
-        )}
-        {activeView === "live-demo" && state.phase === "complete" && (
-          <DemoClose
-            businessName={state.businessName}
-            revenuePlannerData={state.revenuePlannerData}
-          />
+        {activeView === "live-demo" && (
+          <LiveDemo />
         )}
         {activeView === "ceo-dashboard" && <CEODashboard />}
         {activeView === "revenue-engine" && <RevenueEngine />}
@@ -485,7 +387,7 @@ function StartupScreen({ onStart }: { onStart: (name: string) => void }) {
           marginBottom: 32,
           lineHeight: 1.6,
         }}>
-          Enter your business name to start. You'll chat with our COO Agent to understand your vision, define your brand, create your AI character, then we'll build your AI team live.
+          Enter your business name to start. You'll chat with our COO Agent to understand your vision, then we'll build your AI team live.
         </p>
         
         <input
