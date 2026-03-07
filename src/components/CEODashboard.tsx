@@ -85,17 +85,17 @@ const generateData = (startDate: Date, endDate: Date): DataResult => {
     eventRegs: { webinar: Math.round(89 * m), challenge: Math.round(34 * m), total: Math.round(123 * m), previous: Math.round(105 * m) },
     conversionRate: { current: 3.5, previous: 3.1 },
     activeClients: {
-      dfy: { count: 2, capacity: 5, label: "Done For You" },
-      workshop: { count: 18, label: "Workshop" },
-      challenge: { count: 45, label: "VIP Challenge" },
-      book: { count: Math.round(210 * m), label: "Book Buyers" },
+      dfy: { count: 0, capacity: 5, label: "1:1 Coaching" },
+      workshop: { count: 0, label: "Field HQ (Skool)" },
+      challenge: { count: 0, label: "Field Manual Buyers" },
+      book: { count: 0, label: "Email List" },
     },
     referrals: { current: Math.round(15 * m), previous: Math.round(11 * m) },
     adSpend: { spend: Math.round(4200 * m), revenue: Math.round(18900 * m), roas: 4.5 },
     alerts: [
-      { type: "red", message: "Challenge funnel conversion dropped 22% vs prior period", area: "Profit" },
-      { type: "yellow", message: "Cold email reply rate below 2% threshold on Segment B", area: "Promote" },
-      { type: "green", message: "Webinar attendance rate up 18% — highest in 90 days", area: "Promote" },
+      { type: "red", message: "Field Manual landing page not yet live — launch blocked", area: "Profit" },
+      { type: "yellow", message: "Email sequence not yet loaded into GHL — leads going cold", area: "Promote" },
+      { type: "green", message: "Lead magnet DM flow active — opt-ins coming in", area: "Promote" },
     ],
     promote: {
       channels: [
@@ -126,7 +126,7 @@ const generateData = (startDate: Date, endDate: Date): DataResult => {
       offers: [
         { name: "Done For You ($50K)", icon: "⚡", color: "#FF4EDB", active: 2, capacity: 5, completed: Math.round(1 * Math.max(1, m/4)), satisfaction: 98, referrals: Math.round(3 * Math.max(1, m/4)) },
         { name: "Workshop ($5K)", icon: "🔨", color: "#7B61FF", active: 18, capacity: null, completed: Math.round(8 * Math.max(1, m/4)), satisfaction: 94, referrals: Math.round(6 * Math.max(1, m/4)) },
-        { name: "VIP Challenge ($97)", icon: "🏆", color: "#2F80FF", active: 45, capacity: null, completed: Math.round(34 * Math.max(1, m/4)), satisfaction: 91, referrals: Math.round(4 * Math.max(1, m/4)) },
+        { name: "Field Manual ($27)", icon: "📋", color: "#FF4EDB", active: 0, capacity: null, completed: 0, satisfaction: null, referrals: 0 },
         { name: "Book Buyers", icon: "📖", color: "#7B61FF", active: Math.round(210 * m), capacity: null, completed: Math.round(210 * m), satisfaction: null, referrals: Math.round(2 * Math.max(1, m/4)) },
       ],
       totalReferrals: Math.round(15 * m),
@@ -310,7 +310,7 @@ export default function CEODashboard() {
             <div>
               <div style={{ fontSize: 10, letterSpacing: 4, fontFamily: "'Orbitron', monospace",
                 background: "linear-gradient(90deg, #2F80FF, #7B61FF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                AI MONETIZATION WORKSHOPS™
+                THE DATE PROFILER™
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 700, margin: "4px 0 0", color: "#F5F7FA", fontFamily: "'Space Grotesk', sans-serif" }}>CEO Dashboard</h1>
             </div>
@@ -570,7 +570,7 @@ export default function CEODashboard() {
               {[
                 { shift: "MORNING", time: "6 AM – 12 PM", color: "#2F80FF", tasks: [
                   { time: "6:00", task: "Analyze overnight results — all channels", dept: "All" },
-                  { time: "7:00", task: "Morning cold email batch", dept: "Prospect" },
+                  { time: "7:00", task: "Check DM opt-ins and deliver lead magnet", dept: "Prospect" },
                   { time: "7:30", task: "AI Sales processes overnight leads", dept: "Sales" },
                   { time: "8:00", task: "Publish daily social content", dept: "Publish" },
                   { time: "9:00", task: "Dream 100 outreach", dept: "Partner" },
@@ -579,34 +579,34 @@ export default function CEODashboard() {
                   { time: "11:00", task: "Affiliate recruitment batch", dept: "Partner" },
                 ]},
                 { shift: "AFTERNOON", time: "12 PM – 6 PM", color: "#7B61FF", tasks: [
-                  { time: "12:00", task: "Second cold email batch", dept: "Prospect" },
+                  { time: "12:00", task: "Follow up with warm leads from morning opt-ins", dept: "Prospect" },
                   { time: "12:30", task: "AI Sales follow-up", dept: "Sales" },
                   { time: "1:00", task: "Book launch — partner coordination", dept: "Partner" },
-                  { time: "2:00", task: "Challenge enrollment push", dept: "Publish" },
+                  { time: "2:00", task: "Field Manual promotion push", dept: "Publish" },
                   { time: "3:00", task: "Nurture unconverted leads", dept: "Sales" },
                   { time: "4:00", task: "Batch create tomorrow's content", dept: "Publish" },
                   { time: "5:00", task: "Affiliate performance updates", dept: "Partner" },
                   { time: "5:30", task: "Ad budget reallocation", dept: "Paid" },
                 ]},
                 { shift: "NIGHT", time: "6 PM – 12 AM", color: "#FF4EDB", tasks: [
-                  { time: "6:00", task: "Evening cold email batch", dept: "Prospect" },
+                  { time: "6:00", task: "Evening opt-in follow-up sequence", dept: "Prospect" },
                   { time: "6:30", task: "AI Sales final push — hot leads", dept: "Sales" },
                   { time: "7:00", task: "Dream 100 social engagement", dept: "Partner" },
-                  { time: "8:00", task: "Webinar replay promotion", dept: "Sales" },
+                  { time: "8:00", task: "Nurture email sequence — Field Manual offer", dept: "Sales" },
                   { time: "9:00", task: "Research new Dream 100 targets", dept: "Partner" },
                   { time: "10:00", task: "Queue next day's content", dept: "Publish" },
                   { time: "10:30", task: "Launch overnight ad tests", dept: "Paid" },
                   { time: "11:00", task: "Daily report — leads, revenue, actions", dept: "All" },
                 ]},
                 { shift: "OVERNIGHT", time: "12 AM – 6 AM", color: "#8A8F98", tasks: [
-                  { time: "12:00", task: "International cold email batch", dept: "Prospect" },
-                  { time: "12:30", task: "AI Sales nurtures international leads", dept: "Sales" },
+                  { time: "12:00", task: "Process overnight opt-ins and tag new contacts", dept: "Prospect" },
+                  { time: "12:30", task: "Nurture sequence check — resend to non-openers", dept: "Sales" },
                   { time: "1:00", task: "Deep research — competitors & targets", dept: "Partner" },
                   { time: "2:00", task: "List building & verification", dept: "Prospect" },
                   { time: "3:00", task: "Content repurposing", dept: "Publish" },
                   { time: "4:00", task: "A/B test analysis", dept: "All" },
                   { time: "4:30", task: "Overnight ad monitoring", dept: "Paid" },
-                  { time: "5:00", task: "Morning briefing for Joseph", dept: "All" },
+                  { time: "5:00", task: "Morning briefing for Stephanie", dept: "All" },
                 ]},
               ].map((shift, si) => (
                 <div key={si} style={{ marginBottom: si < 3 ? 22 : 0 }}>
