@@ -25,7 +25,7 @@ const KANBAN_COLUMNS = [
   { id: 'inbox' as TaskStatus, title: 'Inbox', color: '#94A3B8' },
   { id: 'up-next' as TaskStatus, title: 'Up Next', color: '#00D9FF' },
   { id: 'in-progress' as TaskStatus, title: 'In Progress', color: '#E91E8C' },
-  { id: 'waiting-on-aaron' as TaskStatus, title: '⏳ Waiting on Aaron', color: '#FBBF24' },
+  { id: 'waiting-on-aaron' as TaskStatus, title: '⏳ Waiting on Stephanie', color: '#FBBF24' },
   { id: 'in-review' as TaskStatus, title: 'In Review', color: '#A855F7' },
   { id: 'done' as TaskStatus, title: 'Done', color: '#34D399' },
   { id: 'backlog' as TaskStatus, title: '📦 Backlog', color: '#64748B' },
@@ -41,7 +41,7 @@ const PRIORITY_COLORS: Record<TaskPriority, { bg: string; text: string; border: 
 };
 
 // Agents - EXACT MATCH to original
-const AGENTS = ['Aaron', 'Solomon', 'Phil', 'Alex'] as const;
+const AGENTS = ['Stephanie', 'Harper', 'Harper AI', 'Unassigned'] as const;
 
 // Sample tasks data
 const sampleTasks: Task[] = [

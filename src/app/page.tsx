@@ -46,7 +46,7 @@ export default function Home() {
             WebkitTextFillColor: "transparent",
             marginBottom: 4,
           }}>
-            AI MONETIZATION
+            THE DATE PROFILER
           </div>
           <div style={{
             fontSize: 16,
